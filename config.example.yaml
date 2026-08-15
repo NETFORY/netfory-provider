@@ -1,97 +1,104 @@
 # =====================================================================
-#  netfory-provider - пример конфигурации (config.yaml)
+#  netfory-provider - example configuration (config.yaml)
 # ---------------------------------------------------------------------
-#  ВАЖНО: если запустить провайдер БЕЗ config.yaml (или с пустыми
-#  ключами identity), приложение само сгенерирует BIP-39 мнемонику,
-#  выведет из неё детерминированный Ed25519-ключ (это и NodeID, и ключ
-#  подписи данных) и запишет всё обратно в config.yaml. Этот файл -
-#  лишь образец того, как выглядит итоговый конфиг.
+#  IMPORTANT: If you run the provider WITHOUT a config.yaml (or with
+#  empty identity keys), the application will auto-generate a BIP-39
+#  mnemonic, deterministically derive an Ed25519 key from it (this is
+#  both the NodeID and the data signing key), and write everything
+#  back to config.yaml. This file is merely a sample of what the
+#  resulting config looks like.
 # =====================================================================
 
 identity:
-  # 12 слов BIP-39. Пусто => будет сгенерировано автоматически при старте.
+  # 12-word BIP-39 mnemonic. Empty => auto-generated on startup.
   bip39_mnemonic: ""
-  # Hex 32-байтного корневого ключа, выведенного из мнемоники.
-  # Пусто => будет вычислено из bip39_mnemonic и записано сюда.
+  # Hex-encoded 32-byte root key derived from the mnemonic.
+  # Empty => computed from bip39_mnemonic and written here.
   iroh_secret_key: ""
 
 network:
-  # UDP-порт iroh/QUIC для ПРЯМЫХ подключений.
-  #   • число (напр. 11204 / 4433) - фиксированный порт. Откройте его (UDP)
-  #     в фаерволе VPS И в панели хостинга, чтобы клиенты били напрямую.
-  #     4433 - удобная маскировка под стандартный TLS/QUIC.
-  #   • random / auto / 0 - случайный порт (связь через relay/holepunch,
-  #     ничего открывать не нужно). Значение по умолчанию.
-  #   Игнорируется, если задан непустой список `relays` (relay-only режим).
-  #   Текущий порт виден в /status -> quic_udp_port и на дашборде.
+  # UDP port for iroh/QUIC DIRECT connections.
+  #   • a number (e.g. 11204 / 4433) - fixed port. Open it (UDP)
+  #     in your VPS firewall AND hosting panel so clients can connect
+  #     directly. 4433 is convenient for masquerading as standard TLS/QUIC.
+  #   • random / auto / 0 - random port (communication via relay/holepunch,
+  #     nothing to open). Default value.
+  #   Ignored if a non-empty `relays` list is set (relay-only mode).
+  #   The current port is visible in /status -> quic_udp_port and on the dashboard.
   listen_port: random
 
-  # Свои relay-серверы (проект smartnet-relay). Если список НЕ пуст -
-  # провайдер работает ТОЛЬКО через relay: прямые UDP-подключения отключаются,
-  # реальный IP origin-сервера клиентам НЕ раскрывается (видят только relay).
-  # Клиентам ничего настраивать не нужно - они узнают relay провайдера через
-  # discovery по NodeID. Relay должны быть iroh-совместимы и доступны по HTTPS.
-  # Пусто (по умолчанию) - прямые подключения + публичные n0-relay.
+  # Custom relay servers (smartnet-relay project). If the list is NOT empty,
+  # the provider operates RELAY-ONLY: direct UDP connections are disabled,
+  # the origin server's real IP is NOT disclosed to clients (they only see
+  # the relay). Clients require no configuration — they discover the
+  # provider's relay URL via discovery by NodeID. Relays must be
+  # Iroh-compatible and accessible over HTTPS.
+  # Empty (default) - direct connections + public n0-relays.
   relays: []
   #   - https://relay-ru1.sth.cx
   #   - https://relay-fsn7.sth.cx
 
-  # Mainline DHT (pkarr) discovery - БЕССЕРВЕРНОЕ обнаружение узлов через
-  # распределённую сеть BitTorrent. Клиенты находят провайдер по NodeID без
-  # зависимости от серверов n0/n1 (релеи остаются транспортным fallback за NAT).
-  # По умолчанию ВКЛ (true). Адреса в DHT публикуются по фильтру relay-only,
-  # поэтому реальный IP не раскрывается. Кол-во DHT-узлов видно на дашборде.
-  # ВАЖНО: для DHT нужен ИСХОДЯЩИЙ UDP (к публичным роутерам :6881 и др.).
-  # Если он закрыт на VPS - DHT не забутстрапится (см. лог-предупреждение),
-  # тогда либо откройте UDP, либо задайте dht_bootstrap ниже, либо false.
-  # Примечание для relay-only: участие в DHT раскрывает IP сервера ДРУГИМ
-  # DHT-узлам (не клиентам). Для максимальной приватности - false или VPN.
+  # Mainline DHT (pkarr) discovery — SERVERLESS node discovery via the
+  # distributed BitTorrent network. Clients find the provider by NodeID
+  # without relying on n0/n1 servers (relays remain a transport fallback
+  # behind NAT). Enabled by default (true). Addresses are published to
+  # the DHT according to the relay-only filter, so the real IP is not
+  # disclosed. DHT node count is visible on the dashboard.
+  # IMPORTANT: DHT requires OUTBOUND UDP (to public routers :6881 etc.).
+  # If it is blocked on your VPS, DHT will not bootstrap (see log warning);
+  # in that case, either open UDP, set dht_bootstrap below, or set false.
+  # Note for relay-only: participating in DHT discloses the server IP to
+  # OTHER DHT nodes (not to clients). For maximum privacy — set false or
+  # use a VPN.
   dht_enabled: true
 
-  # Кастомные bootstrap-узлы Mainline DHT (host:port), добавляются к дефолтным
-  # публичным роутерам. Полезно, когда дефолтные недостижимы. Объединяются с
-  # кэшем живых узлов (dht_boot.dat), который провайдер накапливает сам.
+  # Custom Mainline DHT bootstrap nodes (host:port), added to the default
+  # public routers. Useful when default routers are unreachable. Merged
+  # with the live node cache (dht_boot.dat) that the provider accumulates
+  # on its own.
   dht_bootstrap: []
   #   - 67.215.246.10:6881
   #   - dht.smartnet.example:6881
 
-  # Слушать также IPv6 (`[::]:listen_port`) вместе с IPv4. По умолчанию ВКЛ.
-  # На VPS с публичным IPv6 это исключает WARN
-  # `IPv4 address detected by QAD varies by destination` в CGNAT-сетях и
-  # позволяет клиентам подключаться напрямую по v6, минуя relay/holepunch.
-  # ОТКРОЙТЕ UDP-порт listen_port ДЛЯ ОБЕИХ семей (v4 + v6) в фаерволе:
+  # Also listen on IPv6 (`[::]:listen_port`) alongside IPv4. Enabled by
+  # default. On a VPS with public IPv6, this eliminates the WARN
+  # `IPv4 address detected by QAD varies by destination` in CGNAT
+  # networks and allows clients to connect directly over v6, bypassing
+  # relay/holepunch. OPEN UDP PORT listen_port FOR BOTH FAMILIES
+  # (v4 + v6) in the firewall:
   #   ip6tables -A INPUT -p udp --dport <listen_port> -j ACCEPT
   #   iptables  -A INPUT -p udp --dport <listen_port> -j ACCEPT
-  # Отключить: false (например, если порт v6 занят другим процессом).
+  # Disable: false (e.g., if the v6 port is occupied by another process).
   ipv6_enabled: true
 
-# Локальный HTTP-эндпоинт мониторинга (дашборд + JSON).
+# Local HTTP monitoring endpoint (dashboard + JSON).
 status:
   http_port: 8080
 
-# Параметры анонса в P2P-сеть (gossip).
+# P2P network announcement parameters (gossip).
 gossip:
-  announce_interval_secs: 300   # как часто анонсировать подписанный манифест
+  announce_interval_secs: 300   # how often to announce the signed manifest
 
-# Локальные провайдеры в клирнете, которые мы проксируем.
-# Ключ карты - произвольный идентификатор; поле `name` - это публичное
-# имя цели для протокола api:// (TargetProviderName).
+# Local clearnet providers that we proxy.
+# Map key — arbitrary identifier; `name` field is the public target name
+# for the api:// protocol (TargetProviderName).
 endpoints:
   smartholdem-node:
     protocol: "api"
     name: "node123-smartholdem"             # api://node123-smartholdem
     local_url: "http://localhost:4003/api"
-    rate_limit_per_peer: 25                 # запросов в секунду на один PeerID
+    rate_limit_per_peer: 25                 # requests per second per PeerID
 
-    # WebSocket-туннель (v0.5+): необязательный `local_ws_url` включает
-    # поддержку `new WebSocket('ws://<nodeId>/<name>/<path>')` от dApp'ов.
-    # Провайдер откроет tokio_tungstenite сессию к этому URL + path и будет
-    # пайпить кадры между клиентом (через iroh bi-stream + WsFrame framing)
-    # и апстримом. Без этого поля WS-запросы возвращают Close 1011.
-    # Пример для узла SmartHoldem с realtime-WS: "ws://localhost:4004"
+    # WebSocket tunnel (v0.5+): an optional `local_ws_url` enables
+    # `new WebSocket('ws://<nodeId>/<name>/<path>')` support from dApps.
+    # The provider opens a tokio_tungstenite session to this URL + path
+    # and pipes frames between the client (via iroh bi-stream + WsFrame
+    # framing) and the upstream. Without this field, WS requests return
+    # Close 1011.
+    # Example for a SmartHoldem node with realtime WS: "ws://localhost:4004"
     # local_ws_url: "ws://localhost:4004"
 
-    # Лимит WS-СООБЩЕНИЙ (frames) в секунду на PeerID - отдельный от
-    # rate_limit_per_peer (тот ограничивает частоту handshake'ов).
-    # 30 msgs/sec с запасом хватает игровому/чатному realtime.
+    # WS MESSAGE (frames) rate limit per PeerID — separate from
+    # rate_limit_per_peer (which limits handshake frequency).
+    # 30 msgs/sec comfortably covers gaming/chat realtime traffic.
     ws_rate_limit_per_peer: 30
