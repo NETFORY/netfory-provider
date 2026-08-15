@@ -1,75 +1,78 @@
 # netfory-provider - API Bridge & Router (SmartNet / Web 4.0)
 
-Консольное Rust-приложение, которое принимает зашифрованные P2P-запросы по
-кастомному протоколу **`api://`** (поверх QUIC/Iroh) и проксирует их на
-локальные инстансы в клирнете (например, нода SmartHoldem на `localhost:4003`).
+A console-based Rust application that accepts encrypted P2P requests over a
+custom **`api://`** protocol (built on QUIC/Iroh) and proxies them to local
+instances on the clearnet (e.g., a SmartHoldem node at `localhost:4003`).
 
-> **Зачем:** вместо `https://node0.smartholdem.io` встроенный кошелёк
-> SmartNet обращается к `api://<NodeID>` через P2P-сеть. Доступ к ноде
-> раздаётся как децентрализованный ресурс, без центрального шлюза, а данные
-> **end-to-end подписываются** ключом провайдера (защита от Data Poisoning
-> промежуточными реле).
-
----
-
-## Возможности
-
-- 🔑 **Zero-Configuration.** Нет `config.yaml` или пустые ключи -> приложение
-  само генерирует BIP-39 мнемонику (12 слов), детерминированно выводит из неё
-  Ed25519-ключ (это одновременно **NodeID** и **ключ подписи данных**),
-  записывает всё обратно в конфиг и печатает `NodeID` в консоль.
-- 🛰️ **Протокол `api://`** на двунаправленных QUIC-стримах Iroh.
-- 🔀 **GET и POST (любой метод) + тело запроса.** Метод и base64-тело берутся
-  из пакета; для непустого тела автоматически выставляется
-  `Content-Type/Accept: application/json` - благодаря этому работает в т.ч.
-  **broadcast транзакций** (`POST /api/transactions`).
-- 🔁 **Multi-hop ретрансляция.** Если имя цели чужое - пакет пересылается
-  следующему известному пиру с уменьшением `TTL` (программный реле). Подпись
-  исполнителя сохраняется сквозь все прыжки.
-- ✍️ **Сквозная подпись ответов** (Ed25519). Клиент проверяет подлинность по
-  `NodeID`, не доверяя промежуточным нодам.
-- 🕶️ **RELAY-ONLY режим (приватность).** Если в конфиге задан непустой список
-  `network.relays` - прямые UDP-подключения отключаются, весь трафик идёт
-  только через указанные relay (например свои `smartnet-relay`), и **реальный
-  IP origin-сервера клиентам не раскрывается**.
-- 🔌 **Гибкий транспортный порт.** `network.listen_port`: фиксированное число
-  (открыть UDP в фаерволе для прямых подключений) или `random`/`auto`/`0`
-  (случайный, связь через relay/holepunch). Env `NETFORY_QUIC_PORT`
-  переопределяет конфиг. Текущий порт виден в `/status` -> `quic_udp_port`.
-- 📡 **Discovery через iroh-gossip.** Раз в N минут провайдер анонсирует
-  подписанный манифест (NodeID, проксируемые имена, аптайм, пинг). Чужие
-  анонсы проверяются по подписи и складываются в `peers.dat` (Sled).
-- 🛡️ **Жёсткий per-peer rate limiter** (токен-бакет), настраиваемый в YAML.
-- ⏱️ **Таймаут 5с** на любой запрос в клирнет (reqwest).
-- 📊 **Локальный HTTP-дашборд** (`localhost:8080`) со статистикой + JSON
-  (`/status`, `/peers`). В `/status` есть `quic_udp_port` (или `random`).
-- 🧹 **Чистый лог.** Внутренний шум QUIC-стека iroh (`noq_proto`
-  MultipathNotNegotiated / PTO, гонка путей `iroh::protocol`) по умолчанию
-  заглушён; переопределяется через `RUST_LOG`.
-
-> **Совместимость с клиентом.** В десктоп-клиенте SmartNet (Настройки -> Сеть)
-> есть тумблеры **«Режим только через relay»** (скрыть свой IP) и **«SmartNet
-> Relays»** (подключаться через свои relay в дополнение к n0). Это клиентская
-> сторона той же relay-инфраструктуры.
+> **Why:** Instead of `https://node0.smartholdem.io`, the built-in SmartNet
+> wallet connects to `api://<NodeID>` over the P2P network. Node access is
+> provided as a decentralized resource without a central gateway, and data is
+> **end-to-end signed** by the provider's key (protection against Data Poisoning
+> by intermediate relays).
 
 ---
 
-## Архитектура (модули)
+## Features
 
-| Модуль | Назначение |
-|--------|-----------|
-| `config.rs` | Парсинг `config.yaml` + автоинициализация ключей (Zero-Config) |
-| `crypto.rs` | Единый корень: BIP-39 -> Ed25519 (NodeID + подпись) |
+- 🔑 **Zero-Configuration.** No `config.yaml` or empty keys → the application
+  generates a BIP-39 mnemonic (12 words), deterministically derives an
+  Ed25519 key from it (which serves as both the **NodeID** and **data signing
+  key**), writes everything back to the config, and prints the `NodeID` to
+  the console.
+- 🛰️ **`api://` protocol** over bidirectional QUIC streams via Iroh.
+- 🔀 **GET, POST (any method) + request body.** The method and base64 body are
+  taken from the packet; for a non-empty body, `Content-Type/Accept:
+  application/json` is automatically set — enabling **transaction broadcasting**
+  (`POST /api/transactions`) as well.
+- 🔁 **Multi-hop relaying.** If the target name is foreign, the packet is
+  forwarded to the next known peer with a decremented `TTL` (software relay).
+  The executor's signature is preserved across all hops.
+- ✍️ **End-to-end response signing** (Ed25519). The client verifies authenticity
+  by `NodeID` without trusting intermediate nodes.
+- 🕶️ **RELAY-ONLY mode (privacy).** If a non-empty `network.relays` list is
+  configured, direct UDP connections are disabled; all traffic goes exclusively
+  through the specified relays (e.g., your own `smartnet-relay`), and the
+  **origin server's real IP is never disclosed to clients**.
+- 🔌 **Flexible transport port.** `network.listen_port`: a fixed number (open
+  UDP in the firewall for direct connections) or `random`/`auto`/`0` (random,
+  communication via relay/holepunch). The `NETFORY_QUIC_PORT` environment
+  variable overrides the config. The current port is visible in `/status` →
+  `quic_udp_port`.
+- 📡 **Discovery via iroh-gossip.** Every N minutes the provider announces a
+  signed manifest (NodeID, proxied names, uptime, ping). Foreign announcements
+  are verified by signature and stored in `peers.dat` (Sled).
+- 🛡️ **Strict per-peer rate limiter** (token bucket), configurable in YAML.
+- ⏱️ **5-second timeout** on any clearnet request (reqwest).
+- 📊 **Local HTTP dashboard** (`localhost:8080`) with statistics + JSON
+  (`/status`, `/peers`). The `/status` endpoint includes `quic_udp_port` (or
+  `random`).
+- 🧹 **Clean logs.** Internal noise from the Iroh QUIC stack (`noq_proto`
+  MultipathNotNegotiated / PTO, `iroh::protocol` path races) is suppressed by
+  default; override via `RUST_LOG`.
+
+> **Client compatibility.** The SmartNet desktop client (Settings → Network)
+> includes toggles for **"Relay-only mode"** (hide your IP) and **"SmartNet
+> Relays"** (connect through your own relays in addition to n0). This is the
+> client side of the same relay infrastructure.
+
+---
+
+## Architecture (Modules)
+
+| Module | Purpose |
+|--------|---------|
+| `config.rs` | Parses `config.yaml` + automatic key initialization (Zero-Config) |
+| `crypto.rs` | Single root: BIP-39 → Ed25519 (NodeID + signing) |
 | `protocol.rs` | `MeshPacket`, `SignedResponse`, ALPN `api://` |
-| `proxy_engine.rs` | Прокси в клирнет (reqwest, таймаут 5с) + подпись ответа |
-| `p2p_server.rs` | Iroh Endpoint, ProtocolHandler, реле, gossip-анонсы, health |
-| `stats.rs` | Сбор метрик + axum HTTP-дашборд |
-| `ratelimit.rs` | Токен-бакет на каждый PeerID |
-| `peers.rs` | `peers.dat` (Sled): манифесты известных пиров |
+| `proxy_engine.rs` | Clearnet proxy (reqwest, 5s timeout) + response signing |
+| `p2p_server.rs` | Iroh Endpoint, ProtocolHandler, relay, gossip announcements, health |
+| `stats.rs` | Metrics collection + axum HTTP dashboard |
+| `ratelimit.rs` | Token bucket per PeerID |
+| `peers.rs` | `peers.dat` (Sled): manifests of known peers |
 
 ---
 
-## Сборка и запуск
+## Build & Run
 
 ```bash
 cd netfory-provider
@@ -77,102 +80,102 @@ cargo build --release
 ./target/release/netfory-provider
 ```
 
-При первом запуске будет создан `config.yaml`, сгенерированы ключи и в консоль
-выведен **NodeID** - это и есть адрес `api://<NodeID>` для клиентов.
+On first run, `config.yaml` is created, keys are generated, and the **NodeID**
+is printed to the console — this is the `api://<NodeID>` address for clients.
 
-Уровень логов: `RUST_LOG=debug ./netfory-provider`.
+Log level: `RUST_LOG=debug ./netfory-provider`.
 
 ---
 
-## Адресация `api://`
+## `api://` Addressing
 
-Каноническая, безопасная схема:
+Canonical, secure scheme:
 
 ```
 api://<nodeId>/<providerName>/<path>
 ```
 
-- **`nodeId`** - криптографический адрес узла (iroh EndpointId). Его **нельзя
-  подделать**: соединение iroh аутентифицировано именно к этому Ed25519-ключу,
-  а ответ подписывается тем же ключом.
-- **`providerName`** - имя эндпоинта из `endpoints[].name` в конфиге узла.
-  Это **селектор в контексте конкретного узла** (какой `local_url`
-  проксировать), а не глобальный алиас - поэтому его не нужно регистрировать и
-  невозможно угнать. Один узел может обслуживать несколько провайдеров.
+- **`nodeId`** — the cryptographic address of the node (iroh EndpointId). It
+  **cannot be forged**: the iroh connection is authenticated to this Ed25519
+  key, and the response is signed with the same key.
+- **`providerName`** — the endpoint name from `endpoints[].name` in the node's
+  config. It is a **selector in the context of a specific node** (which
+  `local_url` to proxy), not a global alias — therefore it does not need to be
+  registered and cannot be hijacked. A single node may serve multiple providers.
 
-Примеры:
+Examples:
 
 ```
 api://5fcb21b2…082f/node1-smartholdem/api/wallets/SeTQeEAsHnHU1Y9EBjkRVNPB3fmUvfFUrk
 api://5fcb21b2…082f/xbts-gate1/api/...
 ```
 
-Клиент проверяет, что подписавший узел (`pdata.node_id`) совпадает с
-запрошенным `nodeId` (для прямых, не-реле запросов).
+The client verifies that the signing node (`pdata.node_id`) matches the
+requested `nodeId` (for direct, non-relay requests).
 
-## Формат пакета `api://`
+## `api://` Packet Format
 
-Ответ - **стандартный JSON узла + объект `pdata`** (совместимо с API нод
-SmartHoldem, ничего переписывать не нужно):
+Response — **standard node JSON + `pdata` object** (compatible with SmartHoldem
+node API, no rewriting required):
 
 ```jsonc
 {
   "data": { "address": "SeTQ…", "balance": "800000000", "nonce": "0" },
   "pdata": {
     "v": 1,
-    "node_id": "<NodeID исполнителя>",     // = Ed25519 ключ верификации
+    "node_id": "<Executor's NodeID>",        // = Ed25519 verification key
     "name": "node1-smartholdem",
     "status": 200,
     "signed_at": 1750000000,
     "relayed": false,
     "alg": "ed25519",
-    "sig": "<hex подписи>",
-    "body_b64": "<base64 исходного тела узла>"
+    "sig": "<hex signature>",
+    "body_b64": "<base64 of the original node body>"
   }
 }
 ```
 
-### Как клиент (Tauri) проверяет подпись
+### How the client (Tauri) verifies the signature
 
-1. Читает `pdata.{node_id, status, signed_at, sig, body_b64}`.
-2. Канонические байты: `node_id | status | signed_at |` + `base64decode(body_b64)`.
-3. Парсит `node_id` как `iroh::EndpointId`, проверяет `sig` (Ed25519) над этими
-   байтами. Для прямого запроса дополнительно сверяет, что `node_id` совпадает
-   с запрошенным `<nodeId>`.
+1. Reads `pdata.{node_id, status, signed_at, sig, body_b64}`.
+2. Canonical bytes: `node_id | status | signed_at |` + `base64decode(body_b64)`.
+3. Parses `node_id` as `iroh::EndpointId`, verifies `sig` (Ed25519) over these
+   bytes. For a direct request, additionally checks that `node_id` matches the
+   requested `<nodeId>`.
 
-Так данные защищены от подмены даже если их пронёс через себя чужой реле-узел.
+This protects data from tampering even if it was relayed through a foreign relay
+node.
 
 ---
 
-## Формат пакета `api://`
+## `api://` Packet Format
 
-Запрос (`MeshPacket`, JSON по bi-stream):
+Request (`MeshPacket`, JSON over bi-directional stream):
 
 ```jsonc
 {
-  "target_provider": "node1-smartholdem", // имя эндпоинта из конфига узла
+  "target_provider": "node1-smartholdem", // endpoint name from the node's config
   "method": "GET",
-  "path": "/api/wallets/SeTQ…",            // добавляется к local_url
-  "body": "",                              // base64 (тело запроса)
-  "ttl": 5,                                // прыжки ретрансляции
+  "path": "/api/wallets/SeTQ…",            // appended to local_url
+  "body": "",                              // base64 (request body)
+  "ttl": 5,                                // relay hops
   "request_id": "a1b2c3…"
 }
 ```
 
-
 ---
 
-## Конфиг (`config.yaml`)
+## Configuration (`config.yaml`)
 
-См. `config.example.yaml`. Ключевые поля:
+See `config.example.yaml`. Key fields:
 
 ```yaml
 identity:
-  bip39_mnemonic: ""      # пусто => сгенерируется
-  iroh_secret_key: ""     # пусто => выведется из мнемоники (hex корня)
+  bip39_mnemonic: ""      # empty => auto-generated
+  iroh_secret_key: ""     # empty => derived from mnemonic (hex root)
 network:
-  listen_port: random     # число (откр. UDP в фаерволе) | random/auto/0 (случайный)
-  relays: []              # непусто => RELAY-ONLY (прямой UDP off, IP скрыт)
+  listen_port: random     # number (open UDP in firewall) | random/auto/0 (random)
+  relays: []              # non-empty => RELAY-ONLY (direct UDP off, IP hidden)
   #   - https://relay-ru1.sth.cx
   #   - https://relay-fsn7.sth.cx
 status:
@@ -187,20 +190,20 @@ endpoints:
     rate_limit_per_peer: 5
 ```
 
-Переменные окружения:
-- `NETFORY_QUIC_PORT` - переопределяет `network.listen_port` (`0`/`random` = случайный).
-- `RUST_LOG` - уровень/фильтр логов (по умолчанию шум QUIC заглушён).
+Environment variables:
+- `NETFORY_QUIC_PORT` — overrides `network.listen_port` (`0`/`random` = random).
+- `RUST_LOG` — log level/filter (QUIC noise is suppressed by default).
 
 ---
 
-## Приватность: relay-only (скрытие IP)
+## Privacy: Relay-Only (IP Hiding)
 
-По умолчанию iroh оппортунистически устанавливает **прямое** UDP-соединение
-(holepunch). В этом случае клиент видит **реальный IP** сервера-провайдера (на
-сетевом уровне и через анонс прямых адресов в discovery). Схема `api://<nodeId>`
-прячет IP из URL, но **не из сети**.
+By default, Iroh opportunistically establishes a **direct** UDP connection
+(holepunch). In this case the client sees the provider server's **real IP** (at
+the network level and via direct address announcements in discovery). The
+`api://<nodeId>` scheme hides the IP from the URL, but **not from the network**.
 
-Чтобы скрыть реальный IP - задайте свои relay:
+To hide the real IP — configure your own relays:
 
 ```yaml
 network:
@@ -209,22 +212,22 @@ network:
     - https://relay-fsn7.sth.cx
 ```
 
-Тогда провайдер стартует в **RELAY-ONLY** режиме: `clear_ip_transports()` (нет
-прямого UDP-сокета) + `RelayMode::custom(...)`. Весь трафик идёт через relay,
-клиенты видят только адрес relay. `listen_port` игнорируется, в `/status`
-`quic_udp_port = 0`. В логе при старте: `RELAY-ONLY режим: N relay …`.
+The provider then starts in **RELAY-ONLY** mode: `clear_ip_transports()` (no
+direct UDP socket) + `RelayMode::custom(...)`. All traffic goes through relays;
+clients see only the relay address. `listen_port` is ignored; in `/status`
+`quic_udp_port = 0`. Startup log: `RELAY-ONLY mode: N relays …`.
 
-Клиентам ничего настраивать не нужно - relay-URL провайдера они узнают через
-discovery по `NodeID`. Relay-серверы - проект **`smartnet-relay`**; должны быть
-iroh-совместимы и доступны по HTTPS.
+Clients require no configuration — they discover the provider's relay URL via
+discovery by `NodeID`. Relay servers are part of the **`smartnet-relay`**
+project; they must be Iroh-compatible and accessible over HTTPS.
 
-> ⚠️ Остаётся метаданными: публичный n0-discovery знает соответствие
-> `NodeID -> relay`. Для полной автономии можно позже перевести и discovery на
-> свою инфраструктуру. Но **origin IP в relay-only уже не раскрывается**.
+> ⚠️ Metadata remains: the public n0-discovery knows the `NodeID → relay`
+> mapping. For full autonomy, discovery can later be migrated to your own
+> infrastructure. But the **origin IP is not disclosed in relay-only mode**.
 
 ---
 
-## Замечание о версии Iroh
+## Iroh Version Note
 
-Код написан под **iroh 1.0 + iroh-gossip 0.101** (та же пара, что в клиенте
-SmartNet). Версия пакета - **0.3.0**.
+The code is written for **iroh 1.0 + iroh-gossip 0.101** (the same pair used
+in the SmartNet client). Package version: **0.3.0**.
