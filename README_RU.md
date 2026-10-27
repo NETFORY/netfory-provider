@@ -1,3 +1,4 @@
+![Netfory-Provider.jpg](Netfory-Provider.jpg)
 # netfory-provider - API Bridge & Router (SmartNet / Web 4.0)
 
 Консольное Rust-приложение, которое принимает зашифрованные P2P-запросы по
