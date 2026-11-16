@@ -1,11 +1,11 @@
 ![Netfory-Provider.jpg](Netfory-Provider.jpg)
-# netfory-provider - API Bridge & Router (SmartNet / Web 4.0)
+# netfory-provider - API Bridge & Router (NETFORY / Web 4.0)
 
 A console-based Rust application that accepts encrypted P2P requests over a
 custom **`api://`** protocol (built on QUIC/Iroh) and proxies them to local
 instances on the clearnet (e.g., a SmartHoldem node at `localhost:4003`).
 
-> **Why:** Instead of `https://node0.smartholdem.io`, the built-in SmartNet
+> **Why:** Instead of `https://node0.smartholdem.io`, the built-in NETFORY
 > wallet connects to `api://<NodeID>` over the P2P network. Node access is
 > provided as a decentralized resource without a central gateway, and data is
 > **end-to-end signed** by the provider's key (protection against Data Poisoning
@@ -32,7 +32,7 @@ instances on the clearnet (e.g., a SmartHoldem node at `localhost:4003`).
   by `NodeID` without trusting intermediate nodes.
 - 🕶️ **RELAY-ONLY mode (privacy).** If a non-empty `network.relays` list is
   configured, direct UDP connections are disabled; all traffic goes exclusively
-  through the specified relays (e.g., your own `smartnet-relay`), and the
+  through the specified relays (e.g., your own `NETFORY-relay`), and the
   **origin server's real IP is never disclosed to clients**.
 - 🔌 **Flexible transport port.** `network.listen_port`: a fixed number (open
   UDP in the firewall for direct connections) or `random`/`auto`/`0` (random,
@@ -51,8 +51,8 @@ instances on the clearnet (e.g., a SmartHoldem node at `localhost:4003`).
   MultipathNotNegotiated / PTO, `iroh::protocol` path races) is suppressed by
   default; override via `RUST_LOG`.
 
-> **Client compatibility.** The SmartNet desktop client (Settings → Network)
-> includes toggles for **"Relay-only mode"** (hide your IP) and **"SmartNet
+> **Client compatibility.** The NETFORY desktop client (Settings → Network)
+> includes toggles for **"Relay-only mode"** (hide your IP) and **"NETFORY
 > Relays"** (connect through your own relays in addition to n0). This is the
 > client side of the same relay infrastructure.
 
@@ -219,7 +219,7 @@ clients see only the relay address. `listen_port` is ignored; in `/status`
 `quic_udp_port = 0`. Startup log: `RELAY-ONLY mode: N relays …`.
 
 Clients require no configuration — they discover the provider's relay URL via
-discovery by `NodeID`. Relay servers are part of the **`smartnet-relay`**
+discovery by `NodeID`. Relay servers are part of the **`NETFORY-relay`**
 project; they must be Iroh-compatible and accessible over HTTPS.
 
 > ⚠️ Metadata remains: the public n0-discovery knows the `NodeID → relay`
@@ -231,4 +231,4 @@ project; they must be Iroh-compatible and accessible over HTTPS.
 ## Iroh Version Note
 
 The code is written for **iroh 1.0 + iroh-gossip 0.101** (the same pair used
-in the SmartNet client). Package version: **0.3.0**.
+in the NETFORY client). Package version: **0.3.0**.

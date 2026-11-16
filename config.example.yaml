@@ -1,104 +1,97 @@
 # =====================================================================
 #  netfory-provider - example configuration (config.yaml)
 # ---------------------------------------------------------------------
-#  IMPORTANT: If you run the provider WITHOUT a config.yaml (or with
-#  empty identity keys), the application will auto-generate a BIP-39
-#  mnemonic, deterministically derive an Ed25519 key from it (this is
-#  both the NodeID and the data signing key), and write everything
-#  back to config.yaml. This file is merely a sample of what the
-#  resulting config looks like.
+#  IMPORTANT: if you start the provider WITHOUT config.yaml (or with empty
+#  identity keys), the app will automatically generate a BIP-39 mnemonic,
+#  derive a deterministic Ed25519 key from it (this is both the NodeID and
+#  the data-signing key), and write everything back to config.yaml. This file
+#  is only an example of what the final config looks like.
 # =====================================================================
 
 identity:
-  # 12-word BIP-39 mnemonic. Empty => auto-generated on startup.
+  # 12-word BIP-39 mnemonic. Empty => generated automatically on startup.
   bip39_mnemonic: ""
   # Hex-encoded 32-byte root key derived from the mnemonic.
   # Empty => computed from bip39_mnemonic and written here.
   iroh_secret_key: ""
 
 network:
-  # UDP port for iroh/QUIC DIRECT connections.
-  #   • a number (e.g. 11204 / 4433) - fixed port. Open it (UDP)
-  #     in your VPS firewall AND hosting panel so clients can connect
-  #     directly. 4433 is convenient for masquerading as standard TLS/QUIC.
+  # UDP port for iroh/QUIC for DIRECT connections.
+  #   • number (for example 11204 / 4433) - fixed port. Open it (UDP)
+  #     in VPS firewall AND in the hosting panel so clients can connect directly.
+  #     4433 is a convenient disguise as a standard TLS/QUIC port.
   #   • random / auto / 0 - random port (communication via relay/holepunch,
-  #     nothing to open). Default value.
-  #   Ignored if a non-empty `relays` list is set (relay-only mode).
+  #     nothing needs to be opened). Default behavior.
+  #   Ignored if a non-empty `relays` list is specified (relay-only mode).
   #   The current port is visible in /status -> quic_udp_port and on the dashboard.
   listen_port: random
 
-  # Custom relay servers (smartnet-relay project). If the list is NOT empty,
-  # the provider operates RELAY-ONLY: direct UDP connections are disabled,
-  # the origin server's real IP is NOT disclosed to clients (they only see
-  # the relay). Clients require no configuration — they discover the
-  # provider's relay URL via discovery by NodeID. Relays must be
-  # Iroh-compatible and accessible over HTTPS.
-  # Empty (default) - direct connections + public n0-relays.
+  # Custom relay servers (project smartnet-relay). If the list is NOT empty -
+  # the provider works ONLY through relay: direct UDP connections are disabled,
+  # the real IP of the origin server is NOT exposed to clients (they only see relay).
+  # Clients do not need any configuration - they learn the provider relay via
+  # NodeID discovery. Relays must be iroh-compatible and reachable over HTTPS.
+  # Empty (default) - direct connections + public n0-relay.
   relays: []
   #   - https://relay-ru1.sth.cx
   #   - https://relay-fsn7.sth.cx
 
-  # Mainline DHT (pkarr) discovery — SERVERLESS node discovery via the
-  # distributed BitTorrent network. Clients find the provider by NodeID
-  # without relying on n0/n1 servers (relays remain a transport fallback
-  # behind NAT). Enabled by default (true). Addresses are published to
-  # the DHT according to the relay-only filter, so the real IP is not
-  # disclosed. DHT node count is visible on the dashboard.
-  # IMPORTANT: DHT requires OUTBOUND UDP (to public routers :6881 etc.).
-  # If it is blocked on your VPS, DHT will not bootstrap (see log warning);
-  # in that case, either open UDP, set dht_bootstrap below, or set false.
-  # Note for relay-only: participating in DHT discloses the server IP to
-  # OTHER DHT nodes (not to clients). For maximum privacy — set false or
-  # use a VPN.
+  # Mainline DHT (pkarr) discovery - SERVERLESS node discovery through the
+  # distributed BitTorrent network. Clients find the provider by NodeID without
+  # depending on n0/n1 servers (relays remain a transport fallback behind NAT).
+  # Enabled by default (true). Addresses in the DHT are published with relay-only
+  # filtering, so the real IP is not exposed. The number of DHT nodes is visible on the dashboard.
+  # IMPORTANT: DHT requires OUTGOING UDP (to public routers on :6881 and others).
+  # If it is blocked on the VPS - DHT will not bootstrap (see log warning),
+  # then either open UDP, or set dht_bootstrap below, or set false.
+  # Note for relay-only: participation in DHT exposes the server IP to other
+  # DHT nodes (not to clients). For maximum privacy - false or VPN.
   dht_enabled: true
 
-  # Custom Mainline DHT bootstrap nodes (host:port), added to the default
-  # public routers. Useful when default routers are unreachable. Merged
-  # with the live node cache (dht_boot.dat) that the provider accumulates
-  # on its own.
+  # Custom bootstrap nodes for Mainline DHT (host:port), added to the default
+  # public routers. Useful when the defaults are unreachable. Combined with the
+  # cache of live nodes (dht_boot.dat), which the provider accumulates itself.
   dht_bootstrap: []
   #   - 67.215.246.10:6881
   #   - dht.smartnet.example:6881
 
-  # Also listen on IPv6 (`[::]:listen_port`) alongside IPv4. Enabled by
-  # default. On a VPS with public IPv6, this eliminates the WARN
-  # `IPv4 address detected by QAD varies by destination` in CGNAT
-  # networks and allows clients to connect directly over v6, bypassing
-  # relay/holepunch. OPEN UDP PORT listen_port FOR BOTH FAMILIES
-  # (v4 + v6) in the firewall:
+  # Also listen on IPv6 (`[::]:listen_port`) alongside IPv4. Enabled by default.
+  # On a VPS with public IPv6, this avoids the WARN
+  # `IPv4 address detected by QAD varies by destination` on CGNAT networks and
+  # allows clients to connect directly over v6, bypassing relay/holepunch.
+  # OPEN UDP port listen_port FOR BOTH families (v4 + v6) in the firewall:
   #   ip6tables -A INPUT -p udp --dport <listen_port> -j ACCEPT
   #   iptables  -A INPUT -p udp --dport <listen_port> -j ACCEPT
-  # Disable: false (e.g., if the v6 port is occupied by another process).
+  # Disable: false (for example, if the v6 port is occupied by another process).
   ipv6_enabled: true
 
 # Local HTTP monitoring endpoint (dashboard + JSON).
 status:
   http_port: 8080
 
-# P2P network announcement parameters (gossip).
+# Announcement parameters in the P2P network (gossip).
 gossip:
   announce_interval_secs: 300   # how often to announce the signed manifest
 
-# Local clearnet providers that we proxy.
-# Map key — arbitrary identifier; `name` field is the public target name
-# for the api:// protocol (TargetProviderName).
+# Local providers in the clearnet that we proxy.
+# The map key is an arbitrary identifier; the `name` field is the public
+# target name for the api:// protocol (TargetProviderName).
 endpoints:
   smartholdem-node:
     protocol: "api"
-    name: "node123-smartholdem"             # api://node123-smartholdem
+    name: "node1-smartholdem"             # api://node1-smartholdem
     local_url: "http://localhost:4003/api"
-    rate_limit_per_peer: 25                 # requests per second per PeerID
+    rate_limit_per_peer: 5                 # requests per second per PeerID
 
-    # WebSocket tunnel (v0.5+): an optional `local_ws_url` enables
-    # `new WebSocket('ws://<nodeId>/<name>/<path>')` support from dApps.
-    # The provider opens a tokio_tungstenite session to this URL + path
-    # and pipes frames between the client (via iroh bi-stream + WsFrame
-    # framing) and the upstream. Without this field, WS requests return
-    # Close 1011.
+    # WebSocket tunnel (v0.5+): optional `local_ws_url` enables
+    # support for `new WebSocket('ws://<nodeId>/<name>/<path>')` from dApps.
+    # The provider opens a tokio_tungstenite session to this URL + path and pipes
+    # frames between the client (via iroh bi-stream + WsFrame framing)
+    # and the upstream. Without this field, WS requests return Close 1011.
     # Example for a SmartHoldem node with realtime WS: "ws://localhost:4004"
     # local_ws_url: "ws://localhost:4004"
 
-    # WS MESSAGE (frames) rate limit per PeerID — separate from
-    # rate_limit_per_peer (which limits handshake frequency).
-    # 30 msgs/sec comfortably covers gaming/chat realtime traffic.
+    # Limit for WS messages (frames) per second per PeerID - separate from
+    # rate_limit_per_peer (the latter limits handshake frequency).
+    # 30 msgs/sec provides enough headroom for game/chat realtime traffic.
     ws_rate_limit_per_peer: 30
